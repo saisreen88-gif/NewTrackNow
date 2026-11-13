@@ -1,29 +1,521 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TrackNow — Restaurant Ordering &amp; Live Delivery Tracking</title>
-    <meta
-      name="description"
-      content="Order from curated neighborhood kitchens, manage your cart, and track your delivery rider in real time with live red traffic jam alerts."
-    />
-    <meta property="og:title" content="TrackNow — Restaurant Ordering &amp; Live Delivery Tracking" />
-    <meta
-      property="og:description"
-      content="Order from curated neighborhood kitchens, manage your cart, and track your delivery rider in real time with live red traffic jam alerts."
-    />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-  </head>
-  <body class="bg-[#FAFAF9] text-zinc-900 antialiased selection:bg-[#D9381E]/15 selection:text-[#B32610]">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrackNow — Restaurant Ordering &amp; Live Delivery Tracking</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --bg: #fafaf9;
+      --surface: #ffffff;
+      --border: #e4e4e7;
+      --text: #18181b;
+      --muted: #71717a;
+      --accent: #d9381e;
+      --accent-hover: #b82d17;
+      --jam: #dc2626;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    button, input, select { font: inherit; }
+    header {
+      position: sticky; top: 0; z-index: 30;
+      background: rgba(255,255,255,0.96);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-inner {
+      max-width: 1200px; margin: 0 auto; padding: 0 20px;
+      height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    }
+    .brand {
+      font-size: 22px; font-weight: 800; letter-spacing: -0.02em;
+      background: none; border: none; cursor: pointer; color: var(--text);
+    }
+    nav { display: flex; gap: 20px; overflow-x: auto; }
+    .nav-btn {
+      background: none; border: none; border-bottom: 2px solid transparent;
+      padding: 20px 2px; font-size: 14px; font-weight: 600;
+      color: var(--muted); cursor: pointer; white-space: nowrap;
+    }
+    .nav-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+    .cart-btn {
+      background: var(--accent); color: #fff; border: none;
+      padding: 9px 16px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+    }
+    .cart-btn:hover { background: var(--accent-hover); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 28px 20px 60px; }
+    .hero {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end;
+      gap: 16px; padding-bottom: 24px; border-bottom: 1px solid var(--border);
+    }
+    .hero h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; max-width: 600px; }
+    .controls-row {
+      margin-top: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    }
+    .search-input {
+      flex: 1; min-width: 240px; padding: 10px 14px;
+      border: 1px solid var(--border); border-radius: 8px; background: #fff; font-size: 14px;
+    }
+    .btn-outline {
+      background: #fff; border: 1px solid var(--border); color: var(--text);
+      padding: 9px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .btn-outline:hover { border-color: var(--text); }
+    .btn-primary {
+      background: var(--accent); color: #fff; border: none;
+      padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-dark {
+      background: var(--text); color: #fff; border: none;
+      padding: 9px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .tabs {
+      display: flex; gap: 4px; background: #f4f4f5; padding: 4px; border-radius: 8px; overflow-x: auto;
+    }
+    .tab-btn {
+      border: none; background: transparent; padding: 6px 12px; border-radius: 6px;
+      font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer;
+    }
+    .tab-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+    .grid {
+      margin-top: 24px; display: grid; gap: 24px;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; display: flex; flex-direction: column;
+    }
+    .card-img {
+      width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #f4f4f5; display: block;
+    }
+    .card-fallback {
+      width: 100%; aspect-ratio: 4 / 3; background: #f4f4f5;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 14px; font-weight: 600;
+    }
+    .card-body { padding: 18px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; }
+    .meta { font-size: 12px; color: var(--muted); }
+    .card-title { font-size: 17px; font-weight: 700; margin-top: 4px; }
+    .card-desc { font-size: 13px; color: #52525b; margin-top: 6px; }
+    .card-footer {
+      padding-top: 12px; border-top: 1px solid #f4f4f5;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .price { font-family: ui-monospace, monospace; font-weight: 700; font-size: 16px; }
+    .stepper { display: inline-flex; align-items: center; gap: 8px; background: #f4f4f5; padding: 3px; border-radius: 8px; }
+    .stepper button {
+      width: 28px; height: 28px; border: none; background: #fff; border-radius: 6px; font-weight: 700; cursor: pointer;
+    }
+    .track-layout {
+      margin-top: 20px; display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px;
+    }
+    @media (max-width: 900px) { .track-layout { grid-template-columns: 1fr; } }
+    .panel {
+      background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    }
+    .panel-pad { padding: 18px; }
+    #map { width: 100%; height: 480px; background: #f4f4f5; }
+    .alert-jam {
+      background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+      padding: 12px 14px; border-radius: 10px; font-size: 13px; margin-bottom: 14px;
+    }
+    .legend {
+      padding: 10px 14px; border-top: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: #52525b;
+    }
+    .drawer-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50;
+      display: none; justify-content: flex-end;
+    }
+    .drawer-backdrop.open { display: flex; }
+    .drawer {
+      width: 100%; max-width: 420px; background: #fff; height: 100%;
+      display: flex; flex-direction: column; border-left: 1px solid var(--border);
+    }
+    .drawer-head {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .drawer-body { padding: 20px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+    .drawer-foot { padding: 18px 20px; background: #fafafa; border-top: 1px solid var(--border); }
+    .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: #3f3f46; }
+    .field input, .field select {
+      padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-weight: 400;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <button class="brand" onclick="switchView('menu')">TrackNow</button>
+      <nav>
+        <button class="nav-btn active" data-view="menu" onclick="switchView('menu')">Menu</button>
+        <button class="nav-btn" data-view="track" onclick="switchView('track')">Track Order</button>
+        <button class="nav-btn" data-view="restaurant" onclick="switchView('restaurant')">Restaurant</button>
+        <button class="nav-btn" data-view="courier" onclick="switchView('courier')">Courier</button>
+      </nav>
+      <button class="cart-btn" onclick="toggleCart(true)">Cart (<span id="cart-count">0</span>)</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- MENU VIEW -->
+    <section id="view-menu">
+      <div class="hero">
+        <div>
+          <p class="meta">Neighborhood Kitchens · Real-Time Delivery</p>
+          <h1>Order freshly prepared dishes, tracked street by street.</h1>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn-outline" id="btn-locate" onclick="useCurrentLocation()">Use Current Location</button>
+          <button class="btn-outline" onclick="switchView('track')">Track Active Order</button>
+        </div>
+      </div>
+      <p id="location-status" class="meta" style="margin-top:8px;"></p>
+
+      <div class="controls-row">
+        <input id="search-box" class="search-input" type="search" placeholder="Search dishes, kitchens, or ingredients..." oninput="renderMenu()" />
+        <div class="tabs" id="category-tabs"></div>
+      </div>
+
+      <div id="menu-grid" class="grid"></div>
+    </section>
+
+    <!-- TRACK / RESTAURANT / COURIER VIEWS -->
+    <section id="view-track" class="hidden">
+      <div class="hero" style="padding-bottom:16px;">
+        <div>
+          <p class="meta" id="order-meta">Order #TN-1041 · En Route</p>
+          <h1 id="track-heading">Live Order &amp; Courier Map</h1>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-outline" onclick="centerOnCourier()">Center on Rider</button>
+          <button class="btn-outline" onclick="useCurrentLocation(true)">Use My Current Location</button>
+        </div>
+      </div>
+
+      <div class="track-layout">
+        <div class="panel">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;">
+            <strong id="eta-label">ETA: 12 min</strong>
+            <span id="speed-label" style="font-family:ui-monospace,monospace;">Speed: 28 km/h</span>
+          </div>
+          <div id="map"></div>
+          <div class="legend">
+            <span style="color:#b91c1c;font-weight:700;">■ Red Mark = Traffic Jam</span>
+            <span>● Delivery Boy (Live)</span>
+            <span>● Restaurant</span>
+            <span>● Drop-Off</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div id="traffic-banner" class="alert-jam">
+            <strong>Heavy Traffic Jams Marked in Red:</strong>
+            <span id="traffic-banner-text">Market St &amp; 5th Ave (+7 min delay)</span>
+          </div>
+
+          <div class="panel panel-pad">
+            <h2 style="font-size:16px;font-weight:700;margin-bottom:10px;">Connected Parties</h2>
+            <p style="font-size:13px;margin-bottom:6px;"><strong>Restaurant:</strong> <span id="info-rest"></span></p>
+            <p style="font-size:13px;margin-bottom:6px;"><strong>Delivery Boy:</strong> <span id="info-courier"></span></p>
+            <p style="font-size:13px;"><strong>Drop-off:</strong> <span id="info-dest"></span></p>
+          </div>
+
+          <div id="restaurant-controls" class="panel panel-pad hidden">
+            <h2 style="font-size:16px;font-weight:700;margin-bottom:10px;">Restaurant Kitchen Controls</h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn-outline" onclick="setOrderStatus('Confirmed by Kitchen')">Accept</button>
+              <button class="btn-outline" onclick="setOrderStatus('Preparing Food')">Preparing</button>
+              <button class="btn-outline" onclick="setOrderStatus('Ready for Pickup')">Ready</button>
+              <button class="btn-primary" onclick="setOrderStatus('Picked Up · En Route')">Hand Off to Rider</button>
+            </div>
+          </div>
+
+          <div id="courier-controls" class="panel panel-pad hidden">
+            <h2 style="font-size:16px;font-weight:700;margin-bottom:10px;">Delivery Boy Controls</h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+              <button class="btn-outline" onclick="stepCourier()">Step Forward</button>
+              <button class="btn-outline" onclick="toggleAutoDrive()" id="autodrive-btn">Pause Auto-Drive</button>
+              <button class="btn-dark" onclick="setOrderStatus('Delivered')">Mark Delivered</button>
+            </div>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Click anywhere on the map to move rider, or toggle red Traffic Jam:</p>
+            <button class="btn-primary" onclick="toggleTrafficJam()">Toggle Red Traffic Jam</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- CART DRAWER -->
+  <div id="cart-drawer" class="drawer-backdrop">
+    <div class="drawer">
+      <div class="drawer-head">
+        <strong style="font-size:17px;">Your Cart</strong>
+        <button class="btn-outline" onclick="toggleCart(false)">Close</button>
+      </div>
+      <div class="drawer-body">
+        <div id="cart-items"></div>
+        <div class="field">
+          <label>Recipient Name</label>
+          <input id="cust-name" value="Jordan Patel" />
+        </div>
+        <div class="field">
+          <label>Delivery Address</label>
+          <input id="cust-addr" value="525 Market St, San Francisco" />
+        </div>
+      </div>
+      <div class="drawer-foot">
+        <div style="display:flex;justify-content:space-between;font-weight:700;margin-bottom:12px;">
+          <span>Total</span>
+          <span id="cart-total">$0.00</span>
+        </div>
+        <button class="btn-primary" style="width:100%;padding:12px;" onclick="placeOrder()">Place Order</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const MENU = [
+      { id: '1', name: 'Black Truffle Smash Burger', rest: 'Foundry Burger Kitchen', cat: 'Burgers', prep: 16, price: 18.50, img: 'src/assets/images/dish_truffle_burger_1794553763012.jpg', desc: 'Double dry-aged beef patties, aged cheddar, and black truffle aioli.' },
+      { id: '2', name: 'Wood-Fired Margherita DOP', rest: 'Forno Sourdough & Hearth', cat: 'Pizza', prep: 20, price: 21.00, img: 'src/assets/images/dish_margherita_pizza_1794553764458.jpg', desc: '48-hour fermented sourdough crust, San Marzano tomatoes, and basil.' },
+      { id: '3', name: 'Black Garlic Tonkotsu Ramen', rest: 'Kuro Ramen House', cat: 'Ramen', prep: 18, price: 19.50, img: 'src/assets/images/dish_tonkotsu_ramen_1794553763934.jpg', desc: '18-hour pork broth, torched chashu, marinated egg, and garlic oil.' },
+      { id: '4', name: 'Wild King Salmon Poke Bowl', rest: 'Pacific Tide Bowl Co.', cat: 'Bowls', prep: 12, price: 20.50, img: 'src/assets/images/dish_salmon_poke_1794553764488.jpg', desc: 'Fresh Atlantic salmon, sushi rice, avocado, edamame, and sesame.' },
+      { id: '5', name: 'Seoul Honey-Chili Crispy Chicken', rest: 'Bap & Crunch Kitchen', cat: 'Chicken', prep: 15, price: 17.50, img: 'src/assets/images/dish_crispy_chicken_1794553764442.jpg', desc: 'Twice-fried crispy chicken in gochujang honey glaze.' },
+      { id: '6', name: 'Artisan Mascarpone Tiramisu', rest: 'Forno Sourdough & Hearth', cat: 'Desserts', prep: 8, price: 11.50, img: 'src/assets/images/dish_tiramisu_espresso_1794553765248.jpg', desc: 'Espresso-soaked savoiardi layered with whipped mascarpone.' }
+    ];
+
+    let cart = {};
+    let activeCategory = 'All';
+    let currentView = 'menu';
+    let autoDrive = true;
+    let trafficActive = true;
+
+    let order = {
+      number: '#TN-1041',
+      status: 'En Route',
+      restName: 'Kuro Ramen House',
+      courierName: 'Mateo Alvarez (Scooter)',
+      destAddress: '525 Market St, San Francisco',
+      restLoc: { lat: 37.7764, lng: -122.4086 },
+      destLoc: { lat: 37.7897, lng: -122.3999 },
+      route: [],
+      stepIdx: 4
+    };
+
+    function buildRoute(a, b) {
+      const pts = [];
+      for (let i = 0; i <= 20; i++) {
+        const t = i / 20;
+        const bend = Math.sin(t * Math.PI) * 0.002;
+        pts.push({ lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t + bend });
+      }
+      return pts;
+    }
+    order.route = buildRoute(order.restLoc, order.destLoc);
+
+    let map, layerGroup;
+    function initMap() {
+      if (map) return;
+      map = L.map('map').setView([order.restLoc.lat, order.restLoc.lng], 14);
+      const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+      });
+      osm.on('tileerror', () => {
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }).addTo(map);
+      });
+      osm.addTo(map);
+      layerGroup = L.layerGroup().addTo(map);
+      map.on('click', (e) => {
+        if (currentView !== 'courier') return;
+        order.route[order.stepIdx] = { lat: e.latlng.lat, lng: e.latlng.lng };
+        renderMap();
+      });
+    }
+
+    function getJamSegment() {
+      const mid = order.route[Math.floor(order.route.length / 2)];
+      return [
+        { lat: mid.lat - 0.0018, lng: mid.lng - 0.0022 },
+        mid,
+        { lat: mid.lat + 0.0018, lng: mid.lng + 0.0022 }
+      ];
+    }
+
+    function renderMap() {
+      if (!map || !layerGroup) return;
+      layerGroup.clearLayers();
+      const courier = order.route[order.stepIdx] || order.destLoc;
+      const jam = getJamSegment();
+
+      if (trafficActive) {
+        L.polyline(jam.map(p => [p.lat, p.lng]), { color: '#dc2626', weight: 9, opacity: 0.9 }).addTo(layerGroup);
+        L.marker([jam[1].lat, jam[1].lng], {
+          icon: L.divIcon({
+            className: '',
+            html: '<div style="background:#dc2626;color:#fff;padding:3px 7px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;border:1px solid #fff;">▲ Traffic Jam (+7m)</div>'
+          })
+        }).addTo(layerGroup);
+      }
+
+      L.polyline(order.route.map(p => [p.lat, p.lng]), { color: '#2563eb', weight: 4, dashArray: '6 6' }).addTo(layerGroup);
+      L.circleMarker([order.restLoc.lat, order.restLoc.lng], { radius: 8, color: '#18181b', fillColor: '#18181b', fillOpacity: 1 }).bindTooltip('Restaurant').addTo(layerGroup);
+      L.circleMarker([order.destLoc.lat, order.destLoc.lng], { radius: 8, color: '#0f766e', fillColor: '#0f766e', fillOpacity: 1 }).bindTooltip('Drop-Off').addTo(layerGroup);
+      L.marker([courier.lat, courier.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="background:#d9381e;color:#fff;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;border:2px solid #fff;">Delivery Boy (Live)</div>'
+        })
+      }).addTo(layerGroup);
+
+      const inJam = trafficActive && Math.abs(order.stepIdx - Math.floor(order.route.length / 2)) <= 2;
+      const remaining = Math.max(0, order.route.length - 1 - order.stepIdx);
+      document.getElementById('eta-label').textContent = remaining === 0 ? 'Arrived!' : `ETA: ${remaining + (trafficActive ? 5 : 0)} min`;
+      document.getElementById('speed-label').textContent = `Speed: ${inJam ? 7 : 29} km/h`;
+      document.getElementById('order-meta').textContent = `Order ${order.number} · ${order.status}`;
+      document.getElementById('info-rest').textContent = order.restName;
+      document.getElementById('info-courier').textContent = order.courierName;
+      document.getElementById('info-dest').textContent = order.destAddress;
+      document.getElementById('traffic-banner').classList.toggle('hidden', !trafficActive);
+    }
+
+    function renderMenu() {
+      const cats = ['All', 'Burgers', 'Pizza', 'Ramen', 'Bowls', 'Chicken', 'Desserts'];
+      document.getElementById('category-tabs').innerHTML = cats.map(c =>
+        `<button class="tab-btn ${c === activeCategory ? 'active' : ''}" onclick="activeCategory='${c}';renderMenu()">${c}</button>`
+      ).join('');
+
+      const q = document.getElementById('search-box').value.trim().toLowerCase();
+      const list = MENU.filter(i => (activeCategory === 'All' || i.cat === activeCategory) &&
+        (!q || i.name.toLowerCase().includes(q) || i.rest.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q)));
+
+      document.getElementById('menu-grid').innerHTML = list.map(i => {
+        const qty = cart[i.id] || 0;
+        return `<article class="card">
+          <img class="card-img" src="${i.img}" alt="${i.name}" onerror="this.outerHTML='<div class=card-fallback>${i.name}</div>'" />
+          <div class="card-body">
+            <div>
+              <div class="meta">${i.rest} · ${i.prep} min</div>
+              <div class="card-title">${i.name}</div>
+              <div class="card-desc">${i.desc}</div>
+            </div>
+            <div class="card-footer">
+              <span class="price">$${i.price.toFixed(2)}</span>
+              ${qty === 0
+                ? `<button class="btn-dark" onclick="updateCart('${i.id}',1)">+ Add to Cart</button>`
+                : `<div class="stepper"><button onclick="updateCart('${i.id}',-1)">-</button><span>${qty}</span><button onclick="updateCart('${i.id}',1)">+</button></div>`}
+            </div>
+          </div>
+        </article>`;
+      }).join('');
+    }
+
+    function updateCart(id, delta) {
+      cart[id] = Math.max(0, (cart[id] || 0) + delta);
+      if (cart[id] === 0) delete cart[id];
+      const count = Object.values(cart).reduce((a, b) => a + b, 0);
+      document.getElementById('cart-count').textContent = count;
+      renderMenu();
+      renderCart();
+    }
+
+    function renderCart() {
+      const entries = Object.entries(cart);
+      let total = 0;
+      document.getElementById('cart-items').innerHTML = entries.length === 0
+        ? '<p style="color:var(--muted);font-size:14px;">Your cart is empty.</p>'
+        : entries.map(([id, qty]) => {
+            const item = MENU.find(m => m.id === id);
+            total += item.price * qty;
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid #f4f4f5;">
+              <div><strong>${item.name}</strong><div class="meta">$${item.price.toFixed(2)} × ${qty}</div></div>
+              <span class="price">$${(item.price * qty).toFixed(2)}</span>
+            </div>`;
+          }).join('');
+      document.getElementById('cart-total').textContent = `$${total.toFixed(2)}`;
+    }
+
+    function toggleCart(open) {
+      document.getElementById('cart-drawer').classList.toggle('open', open);
+      renderCart();
+    }
+
+    function placeOrder() {
+      const entries = Object.entries(cart);
+      if (entries.length === 0) return;
+      const first = MENU.find(m => m.id === entries[0][0]);
+      order.number = '#TN-' + Math.floor(1042 + Math.random() * 900);
+      order.restName = first.rest;
+      order.destAddress = document.getElementById('cust-addr').value || order.destAddress;
+      order.status = 'Confirmed by Kitchen';
+      order.stepIdx = 0;
+      order.route = buildRoute(order.restLoc, order.destLoc);
+      cart = {};
+      document.getElementById('cart-count').textContent = '0';
+      toggleCart(false);
+      renderMenu();
+      switchView('track');
+    }
+
+    function switchView(view) {
+      currentView = view;
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+      document.getElementById('view-menu').classList.toggle('hidden', view !== 'menu');
+      document.getElementById('view-track').classList.toggle('hidden', view === 'menu');
+      document.getElementById('restaurant-controls').classList.toggle('hidden', view !== 'restaurant');
+      document.getElementById('courier-controls').classList.toggle('hidden', view !== 'courier');
+      if (view !== 'menu') {
+        initMap();
+        setTimeout(() => { map.invalidateSize(); map.fitBounds([order.restLoc, order.destLoc], { padding: [50, 50] }); renderMap(); }, 50);
+      }
+    }
+
+    function useCurrentLocation(updateOrder) {
+      if (!navigator.geolocation) return;
+      document.getElementById('location-status').textContent = 'Detecting current GPS location...';
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        order.destLoc = { lat, lng };
+        order.restLoc = { lat: lat - 0.011, lng: lng - 0.008 };
+        order.destAddress = `Current GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        document.getElementById('cust-addr').value = order.destAddress;
+        document.getElementById('location-status').textContent = 'Using ' + order.destAddress;
+        order.route = buildRoute(order.restLoc, order.destLoc);
+        order.stepIdx = Math.min(order.stepIdx, 3);
+        if (map) { map.fitBounds([order.restLoc, order.destLoc], { padding: [50, 50] }); renderMap(); }
+      }, () => {
+        document.getElementById('location-status').textContent = 'Location permission denied.';
+      });
+    }
+
+    function stepCourier() {
+      if (order.stepIdx < order.route.length - 1) order.stepIdx++;
+      order.status = order.stepIdx === order.route.length - 1 ? 'Delivered' : 'Picked Up · En Route';
+      renderMap();
+    }
+    function setOrderStatus(st) { order.status = st; renderMap(); }
+    function toggleAutoDrive() {
+      autoDrive = !autoDrive;
+      document.getElementById('autodrive-btn').textContent = autoDrive ? 'Pause Auto-Drive' : 'Resume Auto-Drive';
+    }
+    function toggleTrafficJam() { trafficActive = !trafficActive; renderMap(); }
+    function centerOnCourier() {
+      const c = order.route[order.stepIdx];
+      if (map && c) map.setView([c.lat, c.lng], 15);
+    }
+
+    setInterval(() => { if (autoDrive && order.stepIdx < order.route.length - 1) stepCourier(); }, 1800);
+    renderMenu();
+  </script>
+</body>
 </html>
