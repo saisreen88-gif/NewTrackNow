@@ -1,0 +1,6 @@
+{
+  "name": "TrackNow",
+  "description": "Restaurant order-taking, cart checkout, and real-time delivery tracking with live traffic jam alerts.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
